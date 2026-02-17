@@ -1,0 +1,700 @@
+<div class="workflow-container">
+  <!-- Application Header -->
+  <header class="app-header">
+    <div class="title-block">
+      <img src="/assets/icons/tcs_multicolor.png" alt="TCS Logo" class="tcs-logo">
+      <div class="title-content">
+        <span class="title-text">Mortgage Workflow Builder</span>
+        <span class="title-sub">Design, orchestrate, and launch automated workflows</span>
+      </div>
+    </div>
+    <button class="theme-toggle" (click)="toggleTheme($event)" [attr.aria-label]="isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'">
+      <span class="theme-icon">{{ isDarkTheme ? '🌙' : '☀️' }}</span>
+      <span>{{ isDarkTheme ? 'Dark' : 'Light' }}</span>
+    </button>
+  </header>
+
+  <!-- Top Navigation Container -->
+  <div class="top-navigation-container">
+    <!-- Top Navigation Bar -->
+    <nav class="top-nav">
+      <div class="nav-left">
+        <button class="icon-btn back-btn" (click)="goBack()" title="Back to workflows">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+        </button>
+        <div class="workflow-title">
+          <h1>{{ workflowName }}</h1>
+          <span class="workflow-badge">{{ workflowVersion }}</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Top Action Bar -->
+    <div class="top-action-bar">
+      <div class="nav-right" [class.collapsed]="isNavRightCollapsed">
+        <button class="icon-btn nav-toggle-btn" (click)="toggleNavRight()" [title]="isNavRightCollapsed ? 'Expand toolbar' : 'Collapse toolbar'">
+          <svg viewBox="0 0 24 24" fill="currentColor" *ngIf="isNavRightCollapsed">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+          </svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" *ngIf="!isNavRightCollapsed">
+            <path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/>
+          </svg>
+        </button>
+        <div class="nav-right-content" *ngIf="!isNavRightCollapsed">
+          <button class="icon-btn" (click)="addStep()" title="New Step">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+          </button>
+          <button class="icon-btn" (click)="exportJson()" title="Export">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+            </svg>
+          </button>
+          <button class="icon-btn" (click)="isWorkflowSettingsOpen = !isWorkflowSettingsOpen" [class.active]="isWorkflowSettingsOpen" title="Workflow Settings">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+          <div class="save-dropdown-wrapper">
+            <button class="icon-btn" (click)="toggleSaveDropdown()" title="Save">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+              </svg>
+            </button>
+            <div class="save-dropdown-menu" *ngIf="showSaveDropdown">
+              <div class="save-dropdown-item" (click)="saveWorkflow()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                  <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                </svg>
+                <span>Save</span>
+              </div>
+              <div class="save-dropdown-item" (click)="saveAsNewVersion()">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+                <span>Save as new version</span>
+              </div>
+            </div>
+          </div>
+          <button class="icon-btn" (click)="validateFlow()" title="Validate Flow">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+          </button>
+          <button class="icon-btn" (click)="redoStep()" [disabled]="!canRedo()" title="Redo">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/>
+            </svg>
+          </button>
+          <div class="zoom-control">
+            <button class="icon-btn-sm" (click)="zoomOut()" [disabled]="zoom <= zoomMin" title="Zoom Out">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path d="M7 9h5v1H7z"/>
+              </svg>
+            </button>
+            <button class="icon-btn-sm" (click)="zoomIn()" [disabled]="zoom >= zoomMax" title="Zoom In">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content" [class.sidebar-open]="isEditorOpen">
+    <!-- Left Sidebar - AI Generator -->
+    <aside class="left-sidebar" [class.collapsed]="isPromptCollapsed">
+      <div class="sidebar-header">
+        <div class="sidebar-title" [style.cursor]="isPromptCollapsed ? 'pointer' : 'default'" (click)="isPromptCollapsed && togglePromptPanel()">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+          </svg>
+          <span>AI Workflow Generator</span>
+        </div>
+        <button class="icon-btn-sm" (click)="togglePromptPanel()">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path *ngIf="!isPromptCollapsed" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            <path *ngIf="isPromptCollapsed" d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-content" *ngIf="!isPromptCollapsed">
+        <div class="ai-prompt-box">
+          <textarea
+            [(ngModel)]="promptInput"
+            placeholder="Describe your workflow and let AI generate it for you...&#10;Example: Create a workflow to extract income from W2 and Schedule C documents"
+            [disabled]="isGenerating"
+          ></textarea>
+        </div>
+
+        <div class="prompt-actions">
+          <button
+            class="btn-generate"
+            (click)="generateFromPrompt()"
+            [disabled]="!promptInput.trim() || isGenerating"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" *ngIf="!isGenerating">
+              <path d="M7 14l5-5 5 5H7z"/>
+            </svg>
+            <span *ngIf="!isGenerating">Generate Workflow</span>
+            <span *ngIf="isGenerating">Generating...</span>
+          </button>
+        </div>
+
+        <div class="history-section" *ngIf="promptHistory.length > 0">
+          <div class="history-header">Recent Prompts</div>
+          <div class="history-items">
+            <div class="history-item" *ngFor="let item of promptHistory" (click)="loadFromHistory(item)">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+              </svg>
+              <span>{{ item }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas Area -->
+    <main class="canvas-area">
+
+      <!-- Canvas Viewport -->
+      <div class="canvas-viewport"
+           [class.pan-mode]="isPanMode"
+           [class.panning]="isPanning"
+           (dblclick)="onCanvasDoubleClick($event)"
+           (mousedown)="onCanvasMouseDown($event)"
+           (mousemove)="onMouseMove($event)"
+           (mouseup)="onMouseUp()">
+        <div class="workflow-canvas" [style.transform]="canvasTransform">
+          <!-- Steps Flow -->
+          <div class="steps-flow" *ngIf="steps.length > 0">
+            <!-- SVG Layer for Connectors -->
+            <svg class="connectors-svg" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="dashed-pattern" patternUnits="userSpaceOnUse" width="14" height="14">
+                  <rect x="0" y="0" width="8" height="14" fill="#94a3b8"/>
+                </pattern>
+              </defs>
+              <g *ngFor="let connector of connectors">
+                <!-- Connector Path -->
+                <path
+                  [attr.d]="connector.path"
+                  class="connector-path"
+                  stroke-dasharray="8, 6"
+                />
+                <!-- Arrow at end -->
+                <circle
+                  [attr.cx]="connector.midX"
+                  [attr.cy]="connector.midY + 30"
+                  r="3"
+                  class="connector-arrow-marker"
+                />
+              </g>
+            </svg>
+
+            <!-- Step Cards -->
+            <div
+              class="flow-step"
+              [attr.data-node-type]="step.node"
+              *ngFor="let step of steps; let i = index"
+              [class.selected]="selectedStepId === step.id"
+              [class.dragging]="draggedStepId === step.id"
+              [style.left.px]="step.x || 0"
+              [style.top.px]="step.y || 0"
+              (click)="selectStep(step.id)"
+              (mousedown)="onMouseDown($event, step.id)"
+            >
+              <div class="step-header-row">
+                <div class="step-number-badge">
+                  {{ step.id }}
+                </div>
+                <h4 class="step-name">{{ step.name }}</h4>
+              </div>
+              <div class="step-content">
+                <div class="step-info-row">
+                  <span class="step-type-badge">{{ step.node }}</span>
+                  <button class="step-delete-btn" (click)="deleteStep(step.id); $event.stopPropagation()" title="Delete step">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plus Buttons on Connectors (Inside canvas, after step cards) -->
+            <button
+              *ngFor="let connector of connectors"
+              class="connector-add-btn-floating"
+              type="button"
+              [style.left.px]="connector.midX - 12.5"
+              [style.top.px]="connector.midY - 12.5"
+              [attr.data-step-id]="connector.fromStepId"
+              (click)="onAddStepClick(connector.fromStepId, $event)"
+              (mousedown)="onButtonMouseDown($event, connector.fromStepId)"
+              title="Add step here"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Empty State -->
+          <div class="empty-canvas" *ngIf="steps.length === 0">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+              </svg>
+            </div>
+            <h3>Start Building Your Workflow</h3>
+            <p>Click "New Step" to add your first workflow step or use the AI generator</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Sidebar - Inspector -->
+    <aside class="right-sidebar" *ngIf="isEditorOpen">
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          <span>Step Inspector</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="icon-btn-sm" (click)="saveStep()" title="Save Step">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+            </svg>
+          </button>
+          <button class="icon-btn-sm" (click)="closeEditor()" title="Close">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-content">
+        <div class="form-field">
+          <label>Step Name</label>
+          <div class="input-with-expand">
+            <input type="text" [(ngModel)]="stepName" placeholder="Enter step name" maxlength="50" />
+            <button class="expand-btn" (click)="openModalEditor('stepName', 'Step Name')" title="Expand editor">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Node Type</label>
+          <select [(ngModel)]="nodeType">
+            <option *ngFor="let type of nodeTypes" [value]="type">{{ type }}</option>
+          </select>
+        </div>
+
+        <!-- Pydantic Classes (for output generator) -->
+        <div class="form-field" *ngIf="isOutputGenNode">
+          <label>Pydantic Classes</label>
+
+          <div class="pydantic-classes">
+            <div class="pydantic-class" *ngFor="let cls of currentPydanticClasses; let i = index">
+              <div class="class-header">
+                <div class="input-with-expand flex-grow">
+                  <input type="text" [(ngModel)]="cls.name" placeholder="Class name" />
+                  <button class="expand-btn" (click)="openModalEditor('pydanticClassName', 'Pydantic Class Name', i)" title="Expand editor">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                  </button>
+                </div>
+                <button class="icon-btn-sm danger" (click)="removePydanticClass(i)">×</button>
+              </div>
+              <div class="input-with-expand">
+                <textarea [(ngModel)]="cls.code" placeholder="Class code" rows="6" (keydown)="handleCodeInput($event)" class="code-textarea"></textarea>
+                <button class="expand-btn" (click)="openModalEditor('pydanticClassCode', 'Pydantic Class Code', i)" title="Expand editor">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-secondary full-width" (click)="addPydanticClass()">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            Add Class
+          </button>
+
+          <div class="form-field">
+            <label>Pydantic Object Class</label>
+            <select [(ngModel)]="currentPydanticObjectClass">
+              <option value="">Select class</option>
+              <option *ngFor="let name of pydanticClassNames" [value]="name">{{ name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Datapoints (for insights executor) -->
+        <div class="form-field" *ngIf="isInsightsNode">
+          <label>Required Datapoints</label>
+
+          <!-- Dropdown Container -->
+          <div class="datapoint-dropdown-container">
+            <!-- Dropdown Trigger -->
+            <div class="datapoint-dropdown-trigger" (click)="toggleDatapointDropdown()">
+              <div class="dropdown-display">
+                <span *ngIf="currentDatapoints.length === 0" class="placeholder-text">Select datapoints...</span>
+                <div class="selected-tags-inline" *ngIf="currentDatapoints.length > 0">
+                  <span class="tag-inline" *ngFor="let pid of currentDatapoints">
+                    <span class="tag-text">{{ getDatapointByPid(pid)?.name || pid }}</span>
+                    <button class="tag-remove" (click)="removeDatapoint(pid); $event.stopPropagation()" title="Remove">
+                      ×
+                    </button>
+                  </span>
+                </div>
+              </div>
+              <svg class="dropdown-arrow" [class.open]="isDatapointDropdownOpen" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+
+            <!-- Dropdown Menu -->
+            <div class="datapoint-dropdown-menu" *ngIf="isDatapointDropdownOpen">
+              <div class="dropdown-search">
+                <input
+                  type="text"
+                  class="search-input"
+                  [(ngModel)]="datapointSearch"
+                  placeholder="Search datapoints..."
+                  (click)="$event.stopPropagation()"
+                />
+              </div>
+
+              <div class="dropdown-options">
+                <div
+                  class="dropdown-option"
+                  *ngFor="let dp of filteredDatapoints"
+                  [class.selected]="isDatapointSelected(dp.pid)"
+                  (click)="toggleDatapoint(dp.pid); $event.stopPropagation()"
+                >
+                  <input type="checkbox" [checked]="isDatapointSelected(dp.pid)" readonly />
+                  <span>{{ dp.name }}</span>
+                </div>
+                <div class="dropdown-empty" *ngIf="filteredDatapoints.length === 0">
+                  No datapoints found
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Prerequisite</label>
+          <div class="input-with-expand">
+            <input type="text" [(ngModel)]="prerequisite" placeholder="Enter prerequisite step" />
+            <button class="expand-btn" (click)="openModalEditor('prerequisite', 'Prerequisite')" title="Expand editor">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Prompt</label>
+          <div class="input-with-expand">
+            <textarea [(ngModel)]="promptEditor" placeholder="Enter the prompt for this step" rows="6"></textarea>
+            <button class="expand-btn" (click)="openModalEditor('promptEditor', 'Prompt')" title="Expand editor">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label>Important Note</label>
+          <div class="input-with-expand">
+            <textarea [(ngModel)]="importantNote" placeholder="Add any important notes" rows="4"></textarea>
+            <button class="expand-btn" (click)="openModalEditor('importantNote', 'Important Note')" title="Expand editor">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Block (for output generator) -->
+        <div class="form-field" *ngIf="isOutputGenNode">
+          <label>Code Block</label>
+          <div class="input-with-expand">
+            <textarea [(ngModel)]="codeBlock" placeholder="Additional code" rows="6" (keydown)="handleCodeInput($event)" class="code-textarea"></textarea>
+            <button class="expand-btn" (click)="openModalEditor('codeBlock', 'Code Block')" title="Expand editor">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+
+  <!-- JSON Output Modal -->
+  <div class="modal-overlay" *ngIf="jsonOutput" (click)="jsonOutput = ''">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Exported Workflow JSON</h3>
+        <button class="icon-btn-sm" (click)="jsonOutput = ''">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <pre><code>{{ jsonOutput }}</code></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="jsonOutput = ''">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text Editor Modal -->
+  <div class="modal-overlay" *ngIf="isModalEditorOpen" (click)="closeModalEditor()">
+    <div class="modal-card modal-editor-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ modalEditorLabel }}</h3>
+        <button class="icon-btn-sm" (click)="closeModalEditor()">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <textarea
+          [(ngModel)]="modalEditorContent"
+          class="modal-textarea"
+          [class.code-textarea]="isCodeField()"
+          placeholder="Enter content..."
+          rows="20"
+          (keydown)="isCodeField() ? handleCodeInput($event) : null"
+        ></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModalEditor()">Cancel</button>
+        <button class="btn-primary" (click)="saveModalEditor()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflow Settings Modal -->
+  <div class="modal-overlay" *ngIf="isWorkflowSettingsOpen" (click)="isWorkflowSettingsOpen = false">
+    <div class="modal-card workflow-settings-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Workflow Settings</h3>
+        <button class="icon-btn-sm" (click)="isWorkflowSettingsOpen = false">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Workflow Name -->
+        <div class="settings-form-field">
+          <label>Workflow Name <span class="required">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="workflowName"
+            placeholder="Enter workflow name"
+          />
+        </div>
+
+        <!-- Description -->
+        <div class="settings-form-field">
+          <label>Description</label>
+          <textarea
+            [(ngModel)]="workflowDescription"
+            placeholder="Enter description"
+            rows="3"
+          ></textarea>
+        </div>
+
+        <!-- Workflow Type -->
+        <div class="settings-form-field">
+          <label>Workflow Type <span class="required">*</span></label>
+          <div
+            class="select-dropdown-settings"
+            [class.open]="showWorkflowTypeDropdown"
+            (click)="showWorkflowTypeDropdown = !showWorkflowTypeDropdown; $event.stopPropagation()"
+          >
+            <div class="select-display-settings">
+              <span class="selected-text" *ngIf="workflowType">{{ workflowType | titlecase }}</span>
+              <span class="placeholder" *ngIf="!workflowType">Select workflow type</span>
+              <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" *ngIf="showWorkflowTypeDropdown" (click)="$event.stopPropagation()">
+              <div class="dropdown-options">
+                <div
+                  class="dropdown-option"
+                  *ngFor="let type of workflowTypeOptions"
+                  [class.selected]="workflowType === type"
+                  (click)="selectWorkflowType(type); $event.stopPropagation()"
+                >
+                  {{ type | titlecase }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <div class="settings-form-field">
+          <label>Category <span class="required">*</span></label>
+          <div
+            class="select-dropdown-settings"
+            [class.open]="showCategoryDropdown"
+            (click)="showCategoryDropdown = !showCategoryDropdown; $event.stopPropagation()"
+          >
+            <div class="select-display-settings">
+              <span class="selected-text" *ngIf="category">{{ category | titlecase }}</span>
+              <span class="placeholder" *ngIf="!category">Select category</span>
+              <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" *ngIf="showCategoryDropdown" (click)="$event.stopPropagation()">
+              <div class="dropdown-options">
+                <div
+                  class="dropdown-option"
+                  *ngFor="let cat of categoryOptions"
+                  [class.selected]="category === cat"
+                  (click)="selectCategory(cat); $event.stopPropagation()"
+                >
+                  {{ cat | titlecase }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Document -->
+        <div class="settings-form-field">
+          <label>Primary Document <span class="required">*</span></label>
+          <div
+            class="select-dropdown-settings"
+            [class.open]="showPrimaryDocDropdown"
+            (click)="showPrimaryDocDropdown = !showPrimaryDocDropdown; $event.stopPropagation()"
+          >
+            <div class="select-display-settings">
+              <span class="selected-text" *ngIf="primaryDocument">{{ primaryDocument }}</span>
+              <span class="placeholder" *ngIf="!primaryDocument">Select primary document</span>
+              <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" *ngIf="showPrimaryDocDropdown" (click)="$event.stopPropagation()">
+              <input
+                class="dropdown-search"
+                type="text"
+                [(ngModel)]="primaryDocSearch"
+                placeholder="Search documents"
+                (click)="$event.stopPropagation()"
+              >
+              <div class="dropdown-options">
+                <div
+                  class="dropdown-option"
+                  *ngFor="let doc of filteredPrimaryDocuments"
+                  [class.selected]="primaryDocument === doc.name"
+                  (click)="selectPrimaryDocument(doc.name); $event.stopPropagation()"
+                >
+                  {{ doc.name }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other Documents -->
+        <div class="settings-form-field">
+          <label>Other Documents</label>
+          <div
+            class="select-dropdown-settings"
+            [class.open]="showOtherDocsDropdown"
+            (click)="showOtherDocsDropdown = !showOtherDocsDropdown; $event.stopPropagation()"
+          >
+            <div class="select-display-settings">
+              <div class="tags-settings" *ngIf="selectedOtherDocuments.length > 0">
+                <span class="tag-settings" *ngFor="let doc of selectedOtherDocuments">
+                  {{ doc }}
+                  <span class="tag-remove" (click)="removeOtherDocument(doc); $event.stopPropagation()">×</span>
+                </span>
+              </div>
+              <span class="placeholder" *ngIf="selectedOtherDocuments.length === 0">Select other documents</span>
+              <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" *ngIf="showOtherDocsDropdown" (click)="$event.stopPropagation()">
+              <input
+                class="dropdown-search"
+                type="text"
+                [(ngModel)]="otherDocSearch"
+                placeholder="Search documents"
+                (click)="$event.stopPropagation()"
+              >
+              <div class="dropdown-options">
+                <div
+                  class="dropdown-option"
+                  *ngFor="let doc of filteredOtherDocuments"
+                  [class.selected]="isOtherDocumentSelected(doc.name)"
+                  (click)="toggleOtherDocument(doc.name); $event.stopPropagation()"
+                >
+                  <input
+                    type="checkbox"
+                    [checked]="isOtherDocumentSelected(doc.name)"
+                    (click)="$event.stopPropagation()"
+                  >
+                  {{ doc.name }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="isWorkflowSettingsOpen = false">Cancel</button>
+        <button class="btn-primary" (click)="saveWorkflowSettings()">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <img src="/assets/icons/Tata_Consultancy_Services.png" alt="TCS Logo" class="footer-logo">
+      <div class="footer-text">
+        <span class="copyright">©2026 TATA Consultancy Services Limited</span>
+        <a href="#" class="privacy-link">Privacy Notice</a>
+      </div>
+    </div>
+  </footer>
+</div>

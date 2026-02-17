@@ -1,0 +1,8 @@
+"column_name","data_type","is_nullable","character_maximum_length","udt_name"
+"doctype","text","NO",NULL,"text"
+"doc_category","text","YES",NULL,"text"
+"doc_provider","text","YES",NULL,"text"
+"is_multiborrower","boolean","YES",NULL,"bool"
+"borrower_field_name","text","YES",NULL,"text"
+"ssn_field_name","text","YES",NULL,"text"
+"dynamic_borrower_tag","boolean","YES",NULL,"bool"

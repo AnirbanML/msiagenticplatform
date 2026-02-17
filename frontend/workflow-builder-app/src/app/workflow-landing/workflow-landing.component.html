@@ -1,0 +1,263 @@
+<div class="app" (click)="closeAllDropdowns()">  
+  <header>
+    <div class="title-block">
+      <img src="/assets/icons/tcs_multicolor.png" alt="TCS Logo" class="tcs-logo">
+      <div class="title-content">
+        <span class="title-text">Mortgage Workflow Builder</span>
+        <span class="title-sub">Design, orchestrate, and launch automated workflows</span>
+      </div>
+    </div>
+    <button class="theme-toggle" (click)="toggleTheme($event)" [attr.aria-label]="isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'">
+      <span class="theme-icon">{{ isDarkTheme ? '🌙' : '☀️' }}</span>
+      <span>{{ isDarkTheme ? 'Dark' : 'Light' }}</span>
+    </button>
+  </header>  
+    
+  <div class="top-bar">  
+    <div class="search-wrap">  
+      <svg viewBox="0 0 24 24" aria-hidden="true">  
+        <path d="M15.5 14h-.79l-.28-.27A6 6 0 1 0 14 15.5l.27.28v.79L20 21.5 21.5 20l-6-6zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/>  
+      </svg>  
+      <input   
+        type="text"   
+        placeholder="search via workflow name or document type"  
+        [(ngModel)]="searchQuery"  
+        (input)="onSearch()"  
+      >  
+    </div>  
+    <button class="btn" (click)="openCreateView()">create workflow</button>  
+  </div>  
+  
+  <!-- Cards View -->  
+  <div *ngIf="!showCreateView" class="cards-view">  
+    <div *ngIf="isLoading" class="loading">  
+      <div class="loading-spinner"></div>  
+      Loading workflows...  
+    </div>  
+  
+    <div *ngIf="!isLoading && filteredWorkflows.length === 0" class="empty-state">  
+      <svg viewBox="0 0 24 24">  
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>  
+      </svg>  
+      <p>No workflows found. Create your first workflow!</p>  
+    </div>  
+  
+    <div *ngIf="!isLoading && filteredWorkflows.length > 0" class="cards">
+      <div *ngFor="let workflow of filteredWorkflows; let i = index"
+           class="card"
+           [attr.data-category]="workflow.category?.toLowerCase()">
+        <div class="card-loading-spinner" *ngIf="loadingWorkflowId === workflow.id">
+          <div class="spinner"></div>
+        </div>
+        <div class="card-header">
+          <h3 class="card-title">{{ workflow.workflowName }}</h3>
+        </div>
+        <p class="card-version">Version {{ workflow.version }}</p>
+        <p class="card-category" *ngIf="workflow.category">{{ workflow.category }}</p>
+        <div class="card-footer">
+          <span class="type-badge" [ngClass]="getBadgeClass(workflow)">{{ workflow.type }}</span>
+          <div class="card-actions">
+            <button class="action-btn pipeline-btn" (click)="onPipeline(i)" title="Open Pipeline" [disabled]="loadingWorkflowId === workflow.id">
+              <img src="/assets/icons/workflow.png" alt="Pipeline" class="pipeline-icon">
+            </button>
+            <button class="action-btn edit-btn" (click)="onEdit(i)" title="Edit Workflow">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </button>
+            <button class="action-btn delete-btn" (click)="onDelete(i)" title="Delete Workflow">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>  
+  </div>  
+  
+  <!-- Create/Edit Workflow View -->  
+  <div *ngIf="showCreateView" class="create-view">  
+    <div class="create-panel" (click)="closeAllDropdowns(); $event.stopPropagation()">  
+      <div class="close-btn" (click)="closeCreateView()">×</div>  
+        
+      <!-- Row 1: Workflow Name -->
+      <div class="form-row">
+        <div class="form-field">
+          <label>Workflow name <span class="req">*</span></label>
+          <input
+            type="text"
+            [(ngModel)]="formData.workflowName"
+            (input)="onWorkflowNameChange()"
+            [class.invalid]="errors.workflowName"
+            placeholder="Enter workflow name"
+          >
+          <div class="error-text" *ngIf="errors.workflowName">
+            Workflow name is required.
+          </div>
+        </div>
+      </div>  
+  
+      <!-- Description (Full Width) -->  
+      <div class="form-row">  
+        <label>Description</label>  
+        <textarea   
+          [(ngModel)]="formData.description"  
+          placeholder="Enter description"  
+        ></textarea>  
+      </div>  
+  
+      <!-- Workflow Type (Full Width) -->
+      <div class="form-row" [class.dropdown-open]="showTypeDropdown">
+        <label>Workflow Type <span class="req">*</span></label>
+        <div
+          class="select"
+          [class.open]="showTypeDropdown"
+          [class.invalid]="errors.type"
+          (click)="showTypeDropdown = !showTypeDropdown; $event.stopPropagation()"
+        >
+          <div class="select-display">
+            <span class="selected-text" *ngIf="formData.type">{{ getTypeLabel() }}</span>
+            <span class="placeholder" *ngIf="!formData.type">Select workflow type</span>
+          </div>
+          <div class="select-dropdown" *ngIf="showTypeDropdown">
+            <div class="select-options">
+              <div
+                class="option"
+                *ngFor="let type of workflowTypes"
+                [class.selected]="formData.type === type.value"
+                (click)="selectType(type.value); $event.stopPropagation()"
+              >
+                {{ type.label }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="error-text" *ngIf="errors.type">
+          Workflow type is required.
+        </div>
+      </div>
+
+      <!-- Category (Full Width) -->
+      <div class="form-row" [class.dropdown-open]="showCategoryDropdown">
+        <label>Category <span class="req">*</span></label>
+        <div
+          class="select"
+          [class.open]="showCategoryDropdown"
+          [class.invalid]="errors.category"
+          (click)="showCategoryDropdown = !showCategoryDropdown; $event.stopPropagation()"
+        >
+          <div class="select-display">
+            <span class="selected-text" *ngIf="formData.category">{{ getCategoryLabel() }}</span>
+            <span class="placeholder" *ngIf="!formData.category">Select category</span>
+          </div>
+          <div class="select-dropdown" *ngIf="showCategoryDropdown">
+            <div class="select-options">
+              <div
+                class="option"
+                *ngFor="let category of categories"
+                [class.selected]="formData.category === category.value"
+                (click)="selectCategory(category.value); $event.stopPropagation()"
+              >
+                {{ category.label }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="error-text" *ngIf="errors.category">
+          Category is required.
+        </div>
+      </div>
+
+      <!-- Row 2: Primary Document and Other Documents -->  
+      <div class="form-row two-col" [class.dropdown-open]="showPrimaryDropdown || showOtherDropdown">  
+        <div class="form-field">  
+          <label>Primary Document <span class="req">*</span></label>  
+          <div   
+            class="select"   
+            [class.open]="showPrimaryDropdown"  
+            [class.invalid]="errors.primaryDoc"  
+            (click)="showPrimaryDropdown = !showPrimaryDropdown; $event.stopPropagation()"  
+          >  
+            <div class="select-display">  
+              <span class="selected-text" *ngIf="formData.primaryDoc">{{ formData.primaryDoc }}</span>  
+              <span class="placeholder" *ngIf="!formData.primaryDoc">Select primary document</span>  
+            </div>  
+            <div class="select-dropdown" *ngIf="showPrimaryDropdown" (click)="$event.stopPropagation()">  
+              <input   
+                class="select-search"   
+                type="text"   
+                [(ngModel)]="primarySearchQuery"  
+                placeholder="Search documents"  
+                (click)="$event.stopPropagation()"  
+              >  
+              <div class="select-options">  
+                <div   
+                  class="option"   
+                  *ngFor="let doc of filteredPrimaryDocs"  
+                  [class.selected]="formData.primaryDoc === doc"  
+                  (click)="selectPrimaryDoc(doc); $event.stopPropagation()"  
+                >  
+                  {{ doc }}  
+                </div>  
+              </div>  
+            </div>  
+          </div>  
+          <div class="error-text" *ngIf="errors.primaryDoc">  
+            Primary document is required.  
+          </div>  
+        </div>  
+        <div class="form-field">  
+          <label>Other Documents</label>  
+          <div   
+            class="select"   
+            [class.open]="showOtherDropdown"  
+            (click)="showOtherDropdown = !showOtherDropdown; $event.stopPropagation()"  
+          >  
+            <div class="select-display">  
+              <div class="tags" *ngIf="formData.otherDocs.length > 0">  
+                <span class="tag" *ngFor="let doc of formData.otherDocs">  
+                  {{ doc }}  
+                  <span class="remove" (click)="removeOtherDoc(doc); $event.stopPropagation()">×</span>  
+                </span>  
+              </div>  
+              <span class="placeholder" *ngIf="formData.otherDocs.length === 0">Select other documents</span>  
+            </div>  
+            <div class="select-dropdown" *ngIf="showOtherDropdown" (click)="$event.stopPropagation()">  
+              <input   
+                class="select-search"   
+                type="text"   
+                [(ngModel)]="otherSearchQuery"  
+                placeholder="Search documents"  
+                (click)="$event.stopPropagation()"  
+              >  
+              <div class="select-options">  
+                <div   
+                  class="option"   
+                  *ngFor="let doc of filteredOtherDocs"  
+                  [class.selected]="isOtherDocSelected(doc)"  
+                  (click)="toggleOtherDoc(doc); $event.stopPropagation()"  
+                >  
+                  {{ doc }}  
+                </div>  
+              </div>  
+            </div>  
+          </div>  
+        </div>  
+      </div>  
+  
+      <button class="btn outline save-btn" (click)="onSave()">save</button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <img src="/assets/icons/Tata_Consultancy_Services.png" alt="TCS Logo" class="footer-logo">
+      <div class="footer-text">
+        <span class="copyright">©2026 TATA Consultancy Services Limited</span>
+        <a href="#" class="privacy-link">Privacy Notice</a>
+      </div>
+    </div>
+  </footer>
+</div>  
