@@ -1,0 +1,390 @@
+<div class="workflow-testing-container">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="title-block">
+      <img src="/assets/icons/tcs_multicolor.png" alt="TCS Logo" class="tcs-logo">
+      <div class="title-content">
+        <span class="title-text">Mortgage Workflow Builder</span>
+        <span class="title-sub">Design, orchestrate, and launch automated workflows</span>
+      </div>
+    </div>
+    <button class="theme-toggle" (click)="toggleTheme()" [attr.aria-label]="isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'">
+      <span class="theme-icon">{{ isDarkTheme ? '🌙' : '☀️' }}</span>
+      <span>{{ isDarkTheme ? 'Dark' : 'Light' }}</span>
+    </button>
+  </header>
+
+  <!-- Three-Panel Layout -->
+  <div class="testing-layout">
+    <!-- LEFT PANEL: Loan Selection -->
+    <div class="panel left-panel">
+      <div class="panel-title-wrapper">
+        <button class="back-button-inline" (click)="goBack()" title="Back to Workflow Builder">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+        </button>
+        <h2 class="panel-title">Test Configuration</h2>
+      </div>
+
+      <div class="left-panel-content">
+        <!-- Workflow Info -->
+        <div class="workflow-info-section" *ngIf="currentWorkflowName">
+          <label class="form-label">Testing Workflow</label>
+          <div class="workflow-display">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="workflow-icon">
+              <path d="M6 3v2h12V3H6zm10 4H8v5.17L6 14.17V21c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-6.83L16 12.17V7zm-2 14h-4v-5h4v5zm2-7.83L14 15v-3h-4v3l-2-1.83V9h8v4.17z"/>
+            </svg>
+            <div class="workflow-details">
+              <div class="workflow-name">{{ currentWorkflowName }}</div>
+              <div class="workflow-meta" *ngIf="currentWorkflowCategory">
+                {{ currentWorkflowCategory }} • {{ currentWorkflowRunType | titlecase }} Level
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Select Loan Dropdown -->
+        <div class="form-section">
+          <label class="form-label">Select Loan *</label>
+          <div class="custom-select" [class.open]="showLoanDropdown">
+            <div class="select-display" (click)="showLoanDropdown = !showLoanDropdown">
+              <span *ngIf="selectedLoan" class="selected-text">
+                {{ getSelectedLoanText() }}
+              </span>
+              <span *ngIf="!selectedLoan" class="placeholder">Choose a loan to test</span>
+              <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+            <div class="dropdown-menu" *ngIf="showLoanDropdown">
+              <!-- Search inside dropdown -->
+              <div class="dropdown-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  [(ngModel)]="searchQuery"
+                  (input)="onSearch()"
+                  placeholder="Search loans..."
+                  (click)="$event.stopPropagation()"
+                />
+              </div>
+              <!-- Loan options -->
+              <div class="dropdown-options">
+                <div class="loan-group" *ngFor="let loan of filteredLoans">
+                  <!-- Loan radio button (for loan level or parent for borrower level) -->
+                  <label class="dropdown-option-radio loan-option" *ngIf="testType === 'loan'">
+                    <input
+                      type="radio"
+                      name="loanSelection"
+                      [value]="loan.id"
+                      [(ngModel)]="selectedLoanId"
+                      (change)="onLoanSelected()"
+                      class="radio-input"
+                    />
+                    <span class="radio-content">
+                      <span class="loan-number-text">{{ loan.loanNumber }}</span>
+                    </span>
+                  </label>
+
+                  <!-- Borrower level: show loan number as header, then borrower radio buttons -->
+                  <div *ngIf="testType === 'borrower'" class="borrower-group">
+                    <div class="loan-header-text">{{ loan.loanNumber }}</div>
+                    <label
+                      class="dropdown-option-radio borrower-option"
+                      *ngFor="let borrower of loan.borrowers"
+                    >
+                      <input
+                        type="radio"
+                        name="borrowerSelection"
+                        [value]="loan.id + '-' + borrower.id"
+                        [checked]="selectedLoanId === loan.id && selectedBorrowerId === borrower.id"
+                        (change)="onBorrowerSelected(loan.id, borrower.id)"
+                        class="radio-input"
+                      />
+                      <span class="radio-content">
+                        <span class="borrower-id">{{ borrower.name }}</span>
+                        <span *ngIf="!borrower.isCoApplicant" class="primary-badge">Primary</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div *ngIf="filteredLoans.length === 0" class="dropdown-empty">
+                  <p>No loans found matching your search.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Start Test Button -->
+      <div class="left-panel-footer">
+        <button
+          class="btn-primary test-button"
+          (click)="startExecution()"
+          [disabled]="!canStartTest() || isExecuting || !currentWorkflowName"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          {{ isExecuting ? 'Test Running...' : 'Start Test' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- CENTER PANEL: Execution Viewer -->
+    <div class="panel center-panel">
+      <div *ngIf="!currentExecution" class="empty-execution">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <h3>No Test Running</h3>
+        <p>Select a workflow and loan from the left panel to start testing.</p>
+      </div>
+
+      <div *ngIf="currentExecution" class="execution-viewer">
+        <!-- Execution Header -->
+        <div class="execution-header">
+          <div class="execution-info">
+            <h3>{{ currentExecution.workflowName }}</h3>
+            <span class="execution-id">{{ currentExecution.id }}</span>
+          </div>
+          <span
+            class="execution-status-badge"
+            [ngClass]="{
+              'status-running': currentExecution.status === 'running',
+              'status-completed': currentExecution.status === 'completed',
+              'status-failed': currentExecution.status === 'failed'
+            }"
+          >
+            {{ currentExecution.status | titlecase }}
+          </span>
+        </div>
+
+        <!-- Step Progress -->
+        <div class="steps-container">
+          <div
+            class="step-card"
+            *ngFor="let step of currentExecution.steps"
+            [class.expanded]="step.isExpanded"
+            [ngClass]="getStepStatusClass(step.status)"
+          >
+            <div class="step-header" (click)="toggleStepExpansion(step.stepNumber); selectStep(step.stepNumber)">
+              <div class="step-left">
+                <span class="step-icon">{{ getStepStatusIcon(step.status) }}</span>
+                <div class="step-info">
+                  <div class="step-title">
+                    <span class="step-number">Step {{ step.stepNumber }}</span>
+                    <span class="step-name">{{ step.stepName }}</span>
+                  </div>
+                  <div class="step-meta">
+                    <span class="step-node">{{ step.node }}</span>
+                    <span *ngIf="step.duration" class="step-duration">{{ step.duration.toFixed(2) }}s</span>
+                  </div>
+                </div>
+              </div>
+              <div class="step-right">
+                <span *ngIf="step.status === 'completed'" class="step-tokens">
+                  {{ step.tokens.input + step.tokens.output }} tokens
+                </span>
+                <svg class="expand-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 10l5 5 5-5z"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Expanded Content -->
+            <div class="step-content" *ngIf="step.isExpanded && step.status !== 'pending'">
+              <div class="step-section">
+                <h4>Input Data</h4>
+                <pre class="json-viewer">{{ step.inputData | json }}</pre>
+              </div>
+              <div class="step-section" *ngIf="step.outputData">
+                <h4>Output Data</h4>
+                <pre class="json-viewer">{{ step.outputData | json }}</pre>
+              </div>
+              <div class="step-actions" *ngIf="step.status === 'completed'">
+                <button class="btn-small btn-outline" (click)="openEditModal(step.stepNumber)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit Output
+                </button>
+                <button class="btn-small btn-primary" (click)="rerunFromStep(step.stepNumber)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 4v6h6M23 20v-6h-6"/>
+                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                  </svg>
+                  Rerun from Here
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Console Logs -->
+        <div class="console-section">
+          <h4 class="console-title">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 3H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h3v3c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-3h3c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm-5 12H9c-.55 0-1-.45-1-1s.45-1 1-1h6c.55 0 1 .45 1 1s-.45 1-1 1z"/>
+            </svg>
+            Console Logs
+          </h4>
+          <div class="console-logs">
+            <div class="log-entry" *ngFor="let log of currentExecution.consoleLogs">
+              {{ log }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Analytics -->
+    <div class="panel right-panel">
+      <div *ngIf="!currentExecution" class="empty-analytics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        <p>Analytics will appear here during test execution.</p>
+      </div>
+
+      <div *ngIf="currentExecution" class="analytics-container">
+        <!-- Analytics Summary -->
+        <div class="analytics-card">
+          <h3 class="analytics-title">Execution Analytics</h3>
+          <div class="analytics-grid">
+            <div class="metric-item">
+              <div class="metric-label">Input Tokens</div>
+              <div class="metric-value">{{ currentExecution.analytics.totalInputTokens | number }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Output Tokens</div>
+              <div class="metric-value">{{ currentExecution.analytics.totalOutputTokens | number }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Total Cost</div>
+              <div class="metric-value cost">${{ currentExecution.analytics.totalCost.toFixed(4) }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Duration</div>
+              <div class="metric-value">{{ currentExecution.analytics.totalDuration.toFixed(2) }}s</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step Breakdown -->
+        <div class="analytics-card" *ngIf="currentExecution.analytics.stepBreakdown.length > 0">
+          <h3 class="analytics-title">Step Breakdown</h3>
+          <div class="breakdown-list">
+            <div class="breakdown-item" *ngFor="let breakdown of currentExecution.analytics.stepBreakdown">
+              <div class="breakdown-header">
+                <span class="breakdown-step">Step {{ breakdown.stepNumber }}: {{ breakdown.stepName }}</span>
+                <span class="breakdown-cost">${{ breakdown.cost.toFixed(4) }}</span>
+              </div>
+              <div class="breakdown-details">
+                <span class="breakdown-detail">{{ breakdown.tokens }} tokens</span>
+                <span class="breakdown-detail">{{ breakdown.duration.toFixed(2) }}s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected Step Details -->
+        <div class="analytics-card" *ngIf="selectedStepNumber">
+          <h3 class="analytics-title">Step {{ selectedStepNumber }} Details</h3>
+          <div class="step-details-content">
+            <ng-container *ngIf="getSelectedStep() as selectedStep">
+              <div class="detail-section">
+                <h4>Status</h4>
+                <span class="detail-badge" [ngClass]="getStepStatusClass(selectedStep.status)">
+                  {{ selectedStep.status | titlecase }}
+                </span>
+              </div>
+              <div class="detail-section" *ngIf="selectedStep.duration">
+                <h4>Execution Time</h4>
+                <p>{{ selectedStep.duration.toFixed(2) }} seconds</p>
+              </div>
+              <div class="detail-section" *ngIf="selectedStep.status === 'completed'">
+                <h4>Tokens Used</h4>
+                <p>Input: {{ selectedStep.tokens.input }} | Output: {{ selectedStep.tokens.output }}</p>
+              </div>
+              <div class="detail-section" *ngIf="selectedStep.status === 'completed'">
+                <h4>Cost</h4>
+                <p class="cost-value">${{ selectedStep.cost.toFixed(4) }}</p>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+
+        <!-- Test Info -->
+        <div class="analytics-card test-info">
+          <h3 class="analytics-title">Test Information</h3>
+          <div class="info-item">
+            <span class="info-label">Test Type:</span>
+            <span class="info-value">{{ currentExecution.testType | titlecase }} Level</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Loan:</span>
+            <span class="info-value">{{ getSelectedLoan()?.loanNumber }}</span>
+          </div>
+          <div class="info-item" *ngIf="currentExecution.borrowerId">
+            <span class="info-label">Borrower:</span>
+            <span class="info-value">{{ getSelectedBorrower()?.name }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Started:</span>
+            <span class="info-value">{{ currentExecution.startTime | date:'short' }}</span>
+          </div>
+          <div class="info-item" *ngIf="currentExecution.endTime">
+            <span class="info-label">Completed:</span>
+            <span class="info-value">{{ currentExecution.endTime | date:'short' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-content">
+      <img src="/assets/icons/Tata_Consultancy_Services.png" alt="TCS Logo" class="footer-logo">
+      <div class="footer-text">
+        <span class="copyright">©2026 TATA Consultancy Services Limited</span>
+        <a href="#" class="privacy-link">Privacy Notice</a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- Edit Output Modal -->
+<div class="modal-overlay" *ngIf="showEditModal" (click)="closeEditModal()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Edit Step {{ editingStepNumber }} Output</h3>
+      <button class="close-button" (click)="closeEditModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <label class="form-label">Output JSON</label>
+      <textarea
+        class="json-editor"
+        [(ngModel)]="editedOutput"
+        rows="20"
+        spellcheck="false"
+      ></textarea>
+      <p class="help-text">Edit the JSON output and click Save. Make sure the JSON is valid.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="closeEditModal()">Cancel</button>
+      <button class="btn-primary" (click)="saveEditedOutput()">Save Changes</button>
+    </div>
+  </div>
+</div>

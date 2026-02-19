@@ -82,6 +82,7 @@ export class WorkflowBuilderComponent implements OnInit {
   primaryDocument: string = '';
   otherDocumentsInput: string = '';
   selectedOtherDocuments: string[] = [];
+  runType: string = 'loan';
 
   // Workflow Settings Dropdowns
   showPrimaryDocDropdown: boolean = false;
@@ -154,6 +155,8 @@ export class WorkflowBuilderComponent implements OnInit {
   isDarkTheme: boolean = false;
   workflowVersion: string = 'v1.0';
   workflowId: number | null = null;
+  validationStatus: 'none' | 'success' | 'error' | 'validating' = 'none';
+  currentDataPoint: string | null = null;
 
   private http = inject(HttpClient);
   private apiUrl = 'http://localhost:8000/api/v1';
@@ -168,7 +171,7 @@ export class WorkflowBuilderComponent implements OnInit {
 
     // Check if navigation state contains workflow data
     const navigation = this.router.getCurrentNavigation();
-    const state = navigation?.extras?.state || (this.router as any).lastSuccessfulNavigation?.extras?.state;
+    const state = navigation?.extras?.state || history.state;
 
     if (state && state['workflowData']) {
       const workflowData = state['workflowData'];
@@ -184,6 +187,8 @@ export class WorkflowBuilderComponent implements OnInit {
         this.workflowType = details.flowType || '';
         this.category = details.category || '';
         this.primaryDocument = details.doc_type || '';
+        this.currentDataPoint = details.data_point || null;
+        this.runType = details.runtype || 'loan';
 
         // Set other documents as comma-separated string and array
         if (details.other_doc && Array.isArray(details.other_doc)) {
@@ -532,6 +537,7 @@ export class WorkflowBuilderComponent implements OnInit {
       y
     });
     this.selectStep(id);
+    this.validationStatus = 'none'; // Reset validation status on change
   }
 
   saveStep() {
@@ -551,6 +557,7 @@ export class WorkflowBuilderComponent implements OnInit {
     step.pydanticObject = { className: this.currentPydanticObjectClass };
     step.codeBlock = this.codeBlock;
     step.datapoints = [...this.currentDatapoints];
+    this.validationStatus = 'none'; // Reset validation status on change
   }
 
   deleteStep(id: number) {
@@ -566,6 +573,8 @@ export class WorkflowBuilderComponent implements OnInit {
 
     // Resequence all step IDs to maintain order
     this.resequenceSteps();
+
+    this.validationStatus = 'none'; // Reset validation status on change
 
     if (this.steps.length === 0) {
       this.clearEditor();
@@ -592,6 +601,8 @@ export class WorkflowBuilderComponent implements OnInit {
 
     // Resequence all step IDs to maintain order
     this.resequenceSteps();
+
+    this.validationStatus = 'none'; // Reset validation status on change
 
     // Select the restored step
     this.selectStep(stepToRestore.id);
@@ -671,6 +682,8 @@ export class WorkflowBuilderComponent implements OnInit {
     // Resequence all steps to maintain proper order
     this.resequenceSteps();
     console.log('After resequence:', this.steps);
+
+    this.validationStatus = 'none'; // Reset validation status on change
 
     // Select the newly inserted step (it will be at idx + 1 with id = idx + 2)
     this.selectStep(this.steps[idx + 1].id);
@@ -959,17 +972,57 @@ export class WorkflowBuilderComponent implements OnInit {
 
   // Workflow Settings functions
   saveWorkflowSettings() {
-    // Update workflow settings
-    console.log('Workflow settings saved:', {
-      name: this.workflowName,
-      description: this.workflowDescription,
-      type: this.workflowType,
-      primaryDocument: this.primaryDocument,
-      otherDocuments: this.otherDocumentsInput
-    });
+    if (!this.workflowId) {
+      alert('Error: No workflow ID found. Cannot save settings.');
+      return;
+    }
 
-    // Close the settings panel
-    this.isWorkflowSettingsOpen = false;
+    // Build the workflow steps
+    const workflowSteps = this.buildExportWorkflow();
+
+    // Check if workflow contains "insights executor" node
+    const hasInsightsExecutor = workflowSteps.some(step => step.node === 'insights executor');
+
+    // Automatically set flowType to orchestrator if insights executor is present
+    let finalFlowType = this.workflowType;
+    if (hasInsightsExecutor && this.workflowType !== 'orchestrator') {
+      finalFlowType = 'orchestrator';
+      console.log('Automatically setting flowType to "orchestrator" due to insights executor node');
+    }
+
+    // Prepare the payload
+    const payload: any = {
+      workflowName: this.workflowName,
+      description: this.workflowDescription,
+      category: this.category,
+      doc_type: this.primaryDocument,
+      other_doc: this.selectedOtherDocuments,
+      flowType: finalFlowType,
+      runtype: this.runType,
+      workflow: workflowSteps,
+      data_point: this.currentDataPoint && this.currentDataPoint.trim() !== '' ? this.currentDataPoint : null
+    };
+
+    console.log('Saving workflow settings with payload:', payload);
+
+    // Save to database
+    this.http.put(`${this.apiUrl}/workflows/${this.workflowId}/save`, payload)
+      .subscribe({
+        next: (response: any) => {
+          // Update local workflowType if it was changed to orchestrator
+          if (finalFlowType !== this.workflowType) {
+            this.workflowType = finalFlowType;
+            console.log(`Workflow type updated to "${finalFlowType}" in UI`);
+          }
+          alert('Workflow settings saved successfully!');
+          console.log('Save response:', response);
+          this.isWorkflowSettingsOpen = false;
+        },
+        error: (error) => {
+          console.error('Error saving workflow settings:', error);
+          alert(`Error saving workflow settings: ${error.error?.detail || error.message}`);
+        }
+      });
   }
 
   // Export functions
@@ -1030,19 +1083,70 @@ export class WorkflowBuilderComponent implements OnInit {
       return;
     }
 
-    const payload = {
+    // Check if workflow contains "insights executor" node and "output generator" node
+    const workflowSteps = this.buildExportWorkflow();
+    const hasInsightsExecutor = workflowSteps.some(step => step.node === 'insights executor');
+    const hasOutputGenerator = workflowSteps.some(step => step.node === 'output generator');
+
+    // Automatically set flowType to orchestrator if insights executor is present
+    let finalFlowType = this.workflowType;
+    if (hasInsightsExecutor && this.workflowType !== 'orchestrator') {
+      finalFlowType = 'orchestrator';
+      console.log('Automatically setting flowType to "orchestrator" due to insights executor node');
+    }
+
+    console.log('Datapoint check:', {
+      hasOutputGenerator,
+      currentDataPoint: this.currentDataPoint
+    });
+
+    const payload: any = {
       workflowName: this.workflowName,
       description: this.workflowDescription,
       category: this.category,
       doc_type: this.primaryDocument,
       other_doc: this.selectedOtherDocuments,
-      flowType: this.workflowType,
-      workflow: this.buildExportWorkflow()
+      flowType: finalFlowType,
+      runtype: this.runType,
+      workflow: workflowSteps
     };
+
+    // Case 1: If output generator is present, check if datapoint already exists
+    if (hasOutputGenerator) {
+      // Only ask if data_point is not already set in the database
+      if (!this.currentDataPoint || this.currentDataPoint.trim() === '') {
+        const makeDatapoint = confirm('Do you want this workflow to be a datapoint?');
+        if (makeDatapoint) {
+          const datapointName = prompt('Enter datapoint name:', this.workflowName);
+          if (datapointName && datapointName.trim()) {
+            payload.data_point = datapointName.trim();
+            this.currentDataPoint = datapointName.trim(); // Update local value
+            console.log('User provided datapoint name:', datapointName.trim());
+          } else {
+            console.log('User cancelled or provided empty datapoint name');
+          }
+        } else {
+          console.log('User declined: not setting data_point field');
+        }
+      } else {
+        // Data point already exists, keep using it
+        payload.data_point = this.currentDataPoint;
+        console.log('Data point already exists, using existing value:', this.currentDataPoint);
+      }
+    } else if (this.currentDataPoint && this.currentDataPoint.trim() !== '') {
+      // Case 2: If datapoint exists but output generator is removed, still keep the datapoint
+      payload.data_point = this.currentDataPoint;
+      console.log('Keeping existing datapoint even though output generator not present:', this.currentDataPoint);
+    }
 
     this.http.put(`${this.apiUrl}/workflows/${this.workflowId}/save`, payload)
       .subscribe({
         next: (response: any) => {
+          // Update local workflowType if it was changed to orchestrator
+          if (finalFlowType !== this.workflowType) {
+            this.workflowType = finalFlowType;
+            console.log(`Workflow type updated to "${finalFlowType}" in UI`);
+          }
           alert('Workflow saved successfully!');
           console.log('Save response:', response);
           this.showSaveDropdown = false;
@@ -1062,19 +1166,74 @@ export class WorkflowBuilderComponent implements OnInit {
       return;
     }
 
-    const payload = {
+    // Check if workflow contains "insights executor" node and "output generator" node
+    const workflowSteps = this.buildExportWorkflow();
+    const hasInsightsExecutor = workflowSteps.some(step => step.node === 'insights executor');
+    const hasOutputGenerator = workflowSteps.some(step => step.node === 'output generator');
+
+    // Automatically set flowType to orchestrator if insights executor is present
+    let finalFlowType = this.workflowType;
+    if (hasInsightsExecutor && this.workflowType !== 'orchestrator') {
+      finalFlowType = 'orchestrator';
+      console.log('Automatically setting flowType to "orchestrator" due to insights executor node');
+    }
+
+    console.log('Datapoint check:', {
+      hasOutputGenerator,
+      currentDataPoint: this.currentDataPoint
+    });
+
+    const payload: any = {
       workflowName: this.workflowName,
       description: this.workflowDescription,
       category: this.category,
       doc_type: this.primaryDocument,
       other_doc: this.selectedOtherDocuments,
-      flowType: this.workflowType,
-      workflow: this.buildExportWorkflow()
+      flowType: finalFlowType,
+      runtype: this.runType,
+      workflow: workflowSteps
     };
+
+    // Case 1: If output generator is present, check if datapoint already exists
+    if (hasOutputGenerator) {
+      // Only ask if data_point is not already set in the database
+      if (!this.currentDataPoint || this.currentDataPoint.trim() === '') {
+        const makeDatapoint = confirm('Do you want this workflow to be a datapoint?');
+        if (makeDatapoint) {
+          const datapointName = prompt('Enter datapoint name:', this.workflowName);
+          if (datapointName && datapointName.trim()) {
+            payload.data_point = datapointName.trim();
+            this.currentDataPoint = datapointName.trim(); // Update local value
+            console.log('User provided datapoint name:', datapointName.trim());
+          } else {
+            console.log('User cancelled or provided empty datapoint name');
+          }
+        } else {
+          console.log('User declined: not setting data_point field');
+        }
+      } else {
+        // Data point already exists, keep using it
+        payload.data_point = this.currentDataPoint;
+        console.log('Data point already exists, using existing value:', this.currentDataPoint);
+      }
+    } else if (this.currentDataPoint && this.currentDataPoint.trim() !== '') {
+      // Case 2: If datapoint exists but output generator is removed, still keep the datapoint
+      payload.data_point = this.currentDataPoint;
+      console.log('Keeping existing datapoint even though output generator not present:', this.currentDataPoint);
+    }
 
     this.http.put(`${this.apiUrl}/workflows/${this.workflowId}/save-version`, payload)
       .subscribe({
         next: (response: any) => {
+          // Update local workflowType if it was changed to orchestrator
+          if (finalFlowType !== this.workflowType) {
+            this.workflowType = finalFlowType;
+            console.log(`Workflow type updated to "${finalFlowType}" in UI`);
+          }
+          // Update version display
+          if (response.versionNumber) {
+            this.workflowVersion = `v${response.versionNumber}`;
+          }
           alert(`Workflow saved as version ${response.versionNumber} successfully!`);
           console.log('Save version response:', response);
           this.showSaveDropdown = false;
@@ -1097,6 +1256,22 @@ export class WorkflowBuilderComponent implements OnInit {
     // Check if there are any steps
     if (this.steps.length === 0) {
       errors.push('Workflow has no steps.');
+    }
+
+    // Rule: If datapoint name exists, output generator must be at the last step
+    if (this.currentDataPoint && this.currentDataPoint.trim() !== '' && this.steps.length > 0) {
+      const lastStep = this.steps[this.steps.length - 1];
+      if (lastStep.node !== 'output generator') {
+        errors.push(`This workflow has a datapoint name "${this.currentDataPoint}". Workflows with datapoint names must have an output generator node as the last step.`);
+      }
+    }
+
+    // Rule: Agentic workflows must have output generator as the last step
+    if (this.workflowType === 'agentic' && this.steps.length > 0) {
+      const lastStep = this.steps[this.steps.length - 1];
+      if (lastStep.node !== 'output generator') {
+        errors.push('Agentic workflows must have an output generator node as the last step.');
+      }
     }
 
     // Rule 1: Output generator node should always come as the last step
@@ -1180,11 +1355,190 @@ export class WorkflowBuilderComponent implements OnInit {
 
     // Show results
     if (errors.length === 0) {
+      this.validationStatus = 'success';
       alert('✓ Workflow validation passed! No errors found.');
     } else {
+      this.validationStatus = 'error';
       const errorMessage = 'Workflow validation failed:\n\n' + errors.join('\n');
       alert(errorMessage);
     }
+  }
+
+  testWorkflow() {
+    // Start validation animation
+    this.validationStatus = 'validating';
+
+    // Run validation after a short delay to show animation
+    setTimeout(() => {
+      const errors: string[] = [];
+
+      // Check if there are any steps
+      if (this.steps.length === 0) {
+        errors.push('Workflow has no steps.');
+      }
+
+      // Rule: If datapoint name exists, output generator must be at the last step
+      if (this.currentDataPoint && this.currentDataPoint.trim() !== '' && this.steps.length > 0) {
+        const lastStep = this.steps[this.steps.length - 1];
+        if (lastStep.node !== 'output generator') {
+          errors.push(`This workflow has a datapoint name "${this.currentDataPoint}". Workflows with datapoint names must have an output generator node as the last step.`);
+        }
+      }
+
+      // Rule: Agentic workflows must have output generator as the last step
+      if (this.workflowType === 'agentic' && this.steps.length > 0) {
+        const lastStep = this.steps[this.steps.length - 1];
+        if (lastStep.node !== 'output generator') {
+          errors.push('Agentic workflows must have an output generator node as the last step.');
+        }
+      }
+
+      // Rule 1: Output generator node should always come as the last step
+      const outputGenSteps = this.steps.filter(step => step.node === 'output generator');
+      if (outputGenSteps.length > 0) {
+        const lastStep = this.steps[this.steps.length - 1];
+        if (lastStep.node !== 'output generator') {
+          errors.push('Output generator node must be the last step in the workflow.');
+        }
+        // Check if there are any output generator nodes that are not at the end
+        this.steps.forEach((step, index) => {
+          if (step.node === 'output generator' && index !== this.steps.length - 1) {
+            errors.push(`Step ${index + 1}: Output generator can only be at the last position.`);
+          }
+        });
+      }
+
+      // Validate each step
+      this.steps.forEach((step, index) => {
+        const stepNum = index + 1;
+
+        // Check required fields
+        if (!step.name || step.name.trim() === '') {
+          errors.push(`Step ${stepNum}: Name is required.`);
+        }
+
+        if (!step.node || step.node.trim() === '') {
+          errors.push(`Step ${stepNum}: Node type is required.`);
+        }
+
+        if (!step.prompt || step.prompt.trim() === '') {
+          errors.push(`Step ${stepNum}: Prompt is required.`);
+        }
+
+        // Check if output generator has pydantic classes
+        if (step.node === 'output generator') {
+          if (!step.pydanticClasses || step.pydanticClasses.length === 0) {
+            errors.push(`Step ${stepNum}: Output generator requires at least one Pydantic class.`);
+          } else {
+            // Validate each pydantic class
+            step.pydanticClasses.forEach((pc, pcIndex) => {
+              const className = pc.name ? pc.name.trim() : '';
+              const classCode = pc.code ? pc.code.trim() : '';
+
+              if (!className) {
+                errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Class name is required.`);
+              }
+              if (!classCode) {
+                errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Class code is required.`);
+              }
+
+              if (className && classCode) {
+                // Rule 4: Class name cannot start with any number or special character (except . and _)
+                const firstChar = className.charAt(0);
+                if (/[0-9]/.test(firstChar)) {
+                  errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Class name "${className}" cannot start with a number.`);
+                } else if (!/[a-zA-Z._]/.test(firstChar)) {
+                  errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Class name "${className}" cannot start with special character "${firstChar}". Only letters, dot (.) and underscore (_) are allowed.`);
+                }
+
+                // Rule 3: No one can declare 2 classes in class code
+                const classMatches = classCode.match(/class\s+\w+/g);
+                if (classMatches && classMatches.length > 1) {
+                  errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Only one class definition is allowed per Pydantic class block. Found ${classMatches.length} class definitions.`);
+                }
+
+                // Rule 2: Class name given should match the class defined in code block
+                if (classMatches && classMatches.length === 1) {
+                  const definedClassName = classMatches[0].replace(/class\s+/, '');
+                  if (definedClassName !== className) {
+                    errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: Class name "${className}" does not match the class definition "${definedClassName}" in the code.`);
+                  }
+                } else if (!classMatches || classMatches.length === 0) {
+                  errors.push(`Step ${stepNum}, Pydantic Class ${pcIndex + 1}: No class definition found in the code for class name "${className}".`);
+                }
+              }
+            });
+          }
+        }
+      });
+
+      // Show results and navigate if valid
+      if (errors.length === 0) {
+        this.validationStatus = 'success';
+
+        // Prepare test data payload
+        const workflowSteps = this.buildExportWorkflow();
+
+        const payload = {
+          workflowId: this.workflowId,
+          workflowName: this.workflowName,
+          description: this.workflowDescription,
+          category: this.category,
+          doc_type: this.primaryDocument,
+          other_doc: this.selectedOtherDocuments,
+          flowType: this.workflowType,
+          runtype: this.runType,
+          workflow: workflowSteps,
+          data_point: this.currentDataPoint && this.currentDataPoint.trim() !== '' ? this.currentDataPoint : null
+        };
+
+        console.log('Preparing test data with payload:', payload);
+
+        // Call API to prepare test data
+        this.http.post(`${this.apiUrl}/workflows/prepare-test`, payload)
+          .subscribe({
+            next: (response: any) => {
+              console.log('Test data prepared:', response);
+
+              // Wait a moment to show success animation, then navigate with data
+              setTimeout(() => {
+                this.router.navigate(['/testing'], {
+                  state: {
+                    testWorkflow: response.testWorkflow,
+                    loanDetails: response.loanDetails,
+                    documentList: this.documents.map(d => d.name),
+                    datapointList: this.datapoints.map(dp => ({ id: dp.pid, datapointName: dp.name }))
+                  }
+                });
+              }, 800);
+            },
+            error: (error) => {
+              console.error('Error preparing test data:', error);
+              this.validationStatus = 'error';
+
+              // Extract meaningful error message
+              let errorMessage = 'Unknown error occurred';
+              if (error.error?.detail) {
+                errorMessage = typeof error.error.detail === 'string'
+                  ? error.error.detail
+                  : JSON.stringify(error.error.detail);
+              } else if (error.message) {
+                errorMessage = error.message;
+              } else if (error.error) {
+                errorMessage = typeof error.error === 'string'
+                  ? error.error
+                  : JSON.stringify(error.error);
+              }
+
+              alert(`Error preparing test data: ${errorMessage}`);
+            }
+          });
+      } else {
+        this.validationStatus = 'error';
+        const errorMessage = 'Workflow validation failed. Please fix the following errors before testing:\n\n' + errors.join('\n');
+        alert(errorMessage);
+      }
+    }, 600);
   }
 
   // Generate from prompt

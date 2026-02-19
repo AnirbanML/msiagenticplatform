@@ -12,6 +12,7 @@ class WorkflowDetail(BaseModel):
     version: Optional[int] = None
     flowType: Optional[str] = None
     data_point: Optional[str] = None
+    runtype: Optional[str] = None
 
     class Config:
         from_attributes = True

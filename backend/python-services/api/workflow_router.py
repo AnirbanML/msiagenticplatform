@@ -11,6 +11,42 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["workflow"])
 
+def compose_prompt(workflow_data: List[dict]) -> str:
+    """
+    Compose a formatted prompt from workflow steps.
+
+    Args:
+        workflow_data: List of workflow step dictionaries
+
+    Returns:
+        Formatted prompt string combining all workflow steps
+    """
+    output_blocks = []
+
+    for item in workflow_data:
+        step_id = item.get("id", "")
+        node = item.get("node", "")
+        prerequisite = (item.get("prerequisite") or "").strip()
+        prompt = (item.get("prompt") or "").strip()
+        note = (item.get("note") or "").strip()
+
+        block_lines = [
+            f"## STEP {step_id}: Invoke node `{node}`"
+        ]
+
+        if prerequisite:
+            block_lines.append(f"**PREREQUISITES TO EXECUTE THIS STEP**\n{prerequisite}\n**INSTRUCTIONS OF THE STEP:**")
+
+        if prompt:
+            block_lines.append(prompt)
+
+        if note:
+            block_lines.append(f"**IMPORTANT NOTE**\n{note}")
+
+        output_blocks.append("\n".join(block_lines))
+
+    return "\n\n".join(output_blocks)
+
 class WorkflowRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -86,7 +122,8 @@ async def get_all_workflows():
                 other_doc,
                 version,
                 "flowType",
-                data_point
+                data_point,
+                runtype
             FROM common.mortgage_workflow
             ORDER BY id
         """
@@ -276,7 +313,7 @@ async def get_workflow_details(request: GetWorkflowDetailsRequest):
                 id, category, doc_type, prompt, is_informational, data_point, is_contextual,
                 output_structure, other_doc, output_category, note, is_image_analysis,
                 updated_at, isconsistent, iterations, model_name, "workflowName", description,
-                workflow, "flowType", version, "connectedPrompts", "parentOrchestrator"
+                workflow, "flowType", version, "connectedPrompts", "parentOrchestrator", runtype
             FROM common.mortgage_workflow
             WHERE id = $1
         """
@@ -387,7 +424,9 @@ class SaveWorkflowRequest(BaseModel):
     doc_type: str
     other_doc: Optional[List[str]] = None
     flowType: str
+    runtype: Optional[str] = 'loan'
     workflow: List[dict]
+    data_point: Optional[str] = None
 
 @router.put("/workflows/{workflow_id}/save")
 async def save_workflow_normal(workflow_id: int, request: SaveWorkflowRequest):
@@ -408,6 +447,10 @@ async def save_workflow_normal(workflow_id: int, request: SaveWorkflowRequest):
             logger.warning(f"Workflow with ID {workflow_id} not found")
             raise HTTPException(status_code=404, detail=f"Workflow with ID {workflow_id} not found")
 
+        # Compose prompt from workflow steps
+        composed_prompt = compose_prompt(request.workflow)
+        logger.debug(f"Composed prompt length: {len(composed_prompt)} characters")
+
         # Update the workflow with new steps and settings
         update_query = """
             UPDATE common.mortgage_workflow
@@ -418,10 +461,13 @@ async def save_workflow_normal(workflow_id: int, request: SaveWorkflowRequest):
                 doc_type = $4,
                 other_doc = $5,
                 "flowType" = $6,
-                workflow = $7,
+                runtype = $7,
+                workflow = $8,
+                prompt = $9,
+                data_point = $10,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $8
-            RETURNING id, "workflowName", description, category, doc_type, other_doc, version, "flowType"
+            WHERE id = $11
+            RETURNING id, "workflowName", description, category, doc_type, other_doc, version, "flowType", runtype
         """
 
         logger.debug(f"Executing normal save update for workflow ID {workflow_id}")
@@ -437,7 +483,10 @@ async def save_workflow_normal(workflow_id: int, request: SaveWorkflowRequest):
             request.doc_type,
             request.other_doc,
             request.flowType,
+            request.runtype,
             workflow_json,
+            composed_prompt,
+            request.data_point,
             workflow_id
         )
 
@@ -500,6 +549,10 @@ async def save_workflow_as_version(workflow_id: int, request: SaveWorkflowReques
             logger.info(f"Saving current workflow as historical version {next_historical_version}")
             logger.info(f"New version will be: {new_version}")
 
+        # Compose prompt from workflow steps
+        composed_prompt = compose_prompt(request.workflow)
+        logger.debug(f"Composed prompt length: {len(composed_prompt)} characters")
+
         # Update the workflow with new steps, settings, and historical data
         update_query = """
             UPDATE common.mortgage_workflow
@@ -510,11 +563,14 @@ async def save_workflow_as_version(workflow_id: int, request: SaveWorkflowReques
                 doc_type = $4,
                 other_doc = $5,
                 "flowType" = $6,
-                workflow = $7,
-                historicalworkflow = $8,
-                version = $9,
+                runtype = $7,
+                workflow = $8,
+                historicalworkflow = $9,
+                version = $10,
+                prompt = $11,
+                data_point = $12,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $10
+            WHERE id = $13
             RETURNING id, "workflowName", version
         """
 
@@ -532,9 +588,12 @@ async def save_workflow_as_version(workflow_id: int, request: SaveWorkflowReques
             request.doc_type,
             request.other_doc,
             request.flowType,
+            request.runtype,
             workflow_json,
             historical_json,
             new_version,
+            composed_prompt,
+            request.data_point,
             workflow_id
         )
 
@@ -552,3 +611,134 @@ async def save_workflow_as_version(workflow_id: int, request: SaveWorkflowReques
     except Exception as e:
         logger.error(f"Error saving workflow as version: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+class PrepareTestDataRequest(BaseModel):
+    workflowId: int
+    workflowName: str
+    description: Optional[str] = None
+    category: str
+    doc_type: str
+    other_doc: Optional[List[str]] = None
+    flowType: str
+    runtype: str
+    workflow: List[dict]
+    data_point: Optional[str] = None
+
+@router.post("/workflows/prepare-test")
+async def prepare_test_data(request: PrepareTestDataRequest):
+    """
+    Prepare test data for workflow testing by:
+    1. Compiling the complete workflow payload
+    2. Querying sub_document_indexing table for loans/borrowers based on doc types and runtype
+    """
+    try:
+        pool = await get_db()
+
+        # Build list of document types to search for
+        doc_types = [request.doc_type]
+        if request.other_doc:
+            doc_types.extend(request.other_doc)
+
+        logger.info(f"Preparing test data for workflow {request.workflowId}")
+        logger.info(f"Document types: {doc_types}")
+        logger.info(f"Run type: {request.runtype}")
+
+        # Query based on runtype
+        if request.runtype == 'loan':
+            # Get unique loan numbers for the specified document types
+            query = """
+                SELECT DISTINCT loan_number
+                FROM common.sub_document_indexing
+                WHERE doc_type = ANY($1)
+                AND loan_number IS NOT NULL
+                AND loan_number != ''
+                ORDER BY loan_number
+                LIMIT 100
+            """
+
+            rows = await pool.fetch(query, doc_types)
+            loan_details = [
+                {
+                    'loanNumber': row['loan_number'],
+                    'borrowerIDs': []
+                }
+                for row in rows
+            ]
+
+            logger.info(f"Found {len(loan_details)} unique loan numbers")
+
+            return {
+                "testWorkflow": {
+                    "workflowName": request.workflowName,
+                    "description": request.description,
+                    "category": request.category,
+                    "doc_type": request.doc_type,
+                    "other_doc": request.other_doc,
+                    "flowType": request.flowType,
+                    "runtype": request.runtype,
+                    "workflow": request.workflow,
+                    "data_point": request.data_point
+                },
+                "loanDetails": loan_details
+            }
+
+        else:  # borrower level
+            # Get loan numbers with their borrowers for the specified document types
+            query = """
+                SELECT DISTINCT loan_number, borrower_id
+                FROM common.sub_document_indexing
+                WHERE doc_type = ANY($1)
+                AND loan_number IS NOT NULL
+                AND loan_number != ''
+                AND borrower_id IS NOT NULL
+                AND borrower_id != ''
+                ORDER BY loan_number, borrower_id
+                LIMIT 200
+            """
+
+            rows = await pool.fetch(query, doc_types)
+
+            # Group borrowers by loan number
+            loans_dict = {}
+            for row in rows:
+                loan_num = row['loan_number']
+                borrower = row['borrower_id']
+
+                if loan_num not in loans_dict:
+                    loans_dict[loan_num] = {
+                        'loanNumber': loan_num,
+                        'borrowerIDs': []
+                    }
+
+                if borrower not in [b['id'] for b in loans_dict[loan_num]['borrowerIDs']]:
+                    # First borrower is primary, rest are not
+                    is_primary = len(loans_dict[loan_num]['borrowerIDs']) == 0
+                    loans_dict[loan_num]['borrowerIDs'].append({
+                        'id': borrower,
+                        'isPrimary': is_primary
+                    })
+
+            loan_details = list(loans_dict.values())
+
+            logger.info(f"Found {len(loan_details)} unique loan numbers with borrowers")
+
+            return {
+                "testWorkflow": {
+                    "workflowName": request.workflowName,
+                    "description": request.description,
+                    "category": request.category,
+                    "doc_type": request.doc_type,
+                    "other_doc": request.other_doc,
+                    "flowType": request.flowType,
+                    "runtype": request.runtype,
+                    "workflow": request.workflow,
+                    "data_point": request.data_point
+                },
+                "loanDetails": loan_details
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error preparing test data: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error preparing test data: {str(e)}")

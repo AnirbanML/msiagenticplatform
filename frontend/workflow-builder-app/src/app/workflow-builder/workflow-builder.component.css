@@ -484,6 +484,91 @@
   border-color: #fca5a5;
 }
 
+/* Validation button states */
+.nav-right .icon-btn.validation-success,
+.icon-btn.validation-success {
+  background: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #059669 !important;
+  animation: validationSuccess 0.3s ease;
+}
+
+.nav-right .icon-btn.validation-success:hover,
+.icon-btn.validation-success:hover {
+  background: #a7f3d0 !important;
+  border-color: #34d399 !important;
+  color: #047857 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+}
+
+.nav-right .icon-btn.validation-error,
+.icon-btn.validation-error {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #dc2626 !important;
+  animation: validationError 0.3s ease;
+}
+
+.nav-right .icon-btn.validation-error:hover,
+.icon-btn.validation-error:hover {
+  background: #fecaca !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+}
+
+@keyframes validationSuccess {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes validationError {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.nav-right .icon-btn.validation-validating,
+.icon-btn.validation-validating {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #2563eb !important;
+  animation: validationPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes validationPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -1275,6 +1360,50 @@
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 32px;
+}
+
+/* Settings Radio Button Styles */
+.radio-group-settings {
+  display: flex;
+  gap: 24px;
+  padding: 10px 0px;
+  border: 1.5px solid var(--border-primary);
+  border-radius: 6px;
+  min-height: 38px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.radio-option-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.radio-option-settings input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
+  margin: 0;
+}
+
+.radio-label-settings {
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+  margin: 8px;
+  user-select: none;
+}
+
+.theme-dark .radio-group-settings {
+  border-color: #404040;
+}
+
+.theme-dark .radio-label-settings {
+  color: #d0d0d0;
 }
 
 /* Settings Dropdown Styles */

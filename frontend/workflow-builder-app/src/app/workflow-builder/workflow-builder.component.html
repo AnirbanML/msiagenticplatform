@@ -48,9 +48,9 @@
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
           </button>
-          <button class="icon-btn" (click)="exportJson()" title="Export">
+          <button class="icon-btn" (click)="testWorkflow()" title="Test">
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              <path d="M6 3v2h12V3H6zm10 4H8v5.17L6 14.17V21c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-6.83L16 12.17V7zm-2 14h-4v-5h4v5zm2-7.83L14 15v-3h-4v3l-2-1.83V9h8v4.17z"/>
             </svg>
           </button>
           <button class="icon-btn" (click)="isWorkflowSettingsOpen = !isWorkflowSettingsOpen" [class.active]="isWorkflowSettingsOpen" title="Workflow Settings">
@@ -79,7 +79,12 @@
               </div>
             </div>
           </div>
-          <button class="icon-btn" (click)="validateFlow()" title="Validate Flow">
+          <button class="icon-btn"
+                  [class.validation-success]="validationStatus === 'success'"
+                  [class.validation-error]="validationStatus === 'error'"
+                  [class.validation-validating]="validationStatus === 'validating'"
+                  (click)="validateFlow()"
+                  title="Validate Flow">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
@@ -566,6 +571,21 @@
           </div>
         </div>
 
+        <!-- Run Type -->
+        <div class="settings-form-field">
+          <label>Run Type <span class="required">*</span></label>
+          <div class="radio-group-settings">
+            <label class="radio-option-settings">
+              <input type="radio" name="runType" value="loan" [(ngModel)]="runType" />
+              <span class="radio-label-settings">Loan Level</span>
+            </label>
+            <label class="radio-option-settings">
+              <input type="radio" name="runType" value="borrower" [(ngModel)]="runType" />
+              <span class="radio-label-settings">Borrower Level</span>
+            </label>
+          </div>
+        </div>
+
         <!-- Category -->
         <div class="settings-form-field">
           <label>Category <span class="required">*</span></label>
@@ -678,6 +698,19 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Datapoint Name (Editable) -->
+        <div class="settings-form-field" *ngIf="currentDataPoint && currentDataPoint.trim() !== ''">
+          <label>Datapoint Name</label>
+          <input
+            type="text"
+            [(ngModel)]="currentDataPoint"
+            placeholder="Enter datapoint name"
+          />
+          <small style="color: #2b2323; font-size: 12px; margin-top: 4px; display: block;">
+            This workflow is configured as a datapoint.
+          </small>
         </div>
       </div>
       <div class="modal-footer">
