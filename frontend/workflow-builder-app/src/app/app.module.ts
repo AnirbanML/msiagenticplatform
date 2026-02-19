@@ -9,13 +9,15 @@ import { WorkflowLandingComponent } from './workflow-landing/workflow-landing.co
 import { WorkflowBuilderComponent } from './workflow-builder/workflow-builder.component';
 import { WorkflowTestingComponent } from './workflow-testing/workflow-testing.component';
 import { AppRoutingModule } from './app-routing.module';
+import { SafePipe } from './safe.pipe';
 
 @NgModule({
   declarations: [
     AppComponent,
     WorkflowLandingComponent,
     WorkflowBuilderComponent,
-    WorkflowTestingComponent
+    WorkflowTestingComponent,
+    SafePipe
   ],
   imports: [
     BrowserModule,

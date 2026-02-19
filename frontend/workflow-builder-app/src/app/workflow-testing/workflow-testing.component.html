@@ -133,6 +133,20 @@
           </svg>
           {{ isExecuting ? 'Test Running...' : 'Start Test' }}
         </button>
+
+        <!-- Move to Production Toggle -->
+        <div class="production-toggle-container">
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              [(ngModel)]="moveToProduction"
+              (change)="onProductionToggle()"
+              class="toggle-checkbox"
+            />
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Move to Production</span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -153,16 +167,37 @@
             <h3>{{ currentExecution.workflowName }}</h3>
             <span class="execution-id">{{ currentExecution.id }}</span>
           </div>
-          <span
-            class="execution-status-badge"
-            [ngClass]="{
-              'status-running': currentExecution.status === 'running',
-              'status-completed': currentExecution.status === 'completed',
-              'status-failed': currentExecution.status === 'failed'
-            }"
-          >
-            {{ currentExecution.status | titlecase }}
-          </span>
+          <div class="execution-header-right">
+            <span
+              class="execution-status-badge"
+              [ngClass]="{
+                'status-running': currentExecution.status === 'running',
+                'status-completed': currentExecution.status === 'completed',
+                'status-failed': currentExecution.status === 'failed'
+              }"
+            >
+              {{ currentExecution.status | titlecase }}
+            </span>
+
+            <!-- Execution accuracy controls -->
+            <div *ngIf="currentExecution.status === 'completed'" class="execution-accuracy">
+              <span class="accuracy-label">Mark Execution:</span>
+              <button
+                class="btn-small"
+                [class.btn-success]="currentExecution.executionAccuracy === 'correct'"
+                (click)="markExecutionAccuracy('correct')"
+              >
+                ✓ Correct
+              </button>
+              <button
+                class="btn-small"
+                [class.btn-danger]="currentExecution.executionAccuracy === 'incorrect'"
+                (click)="markExecutionAccuracy('incorrect')"
+              >
+                ✗ Incorrect
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Step Progress -->
@@ -173,9 +208,10 @@
             [class.expanded]="step.isExpanded"
             [ngClass]="getStepStatusClass(step.status)"
           >
-            <div class="step-header" (click)="toggleStepExpansion(step.stepNumber); selectStep(step.stepNumber)">
+            <div class="step-header" (click)="toggleStepExpansion(step.stepNumber)">
               <div class="step-left">
                 <span class="step-icon">{{ getStepStatusIcon(step.status) }}</span>
+                <span class="node-type-icon" [ngClass]="getNodeIconClass(step.node)" [innerHTML]="getNodeIcon(step.node)"></span>
                 <div class="step-info">
                   <div class="step-title">
                     <span class="step-number">Step {{ step.stepNumber }}</span>
@@ -200,7 +236,19 @@
             <!-- Expanded Content -->
             <div class="step-content" *ngIf="step.isExpanded && step.status !== 'pending'">
               <div class="step-section">
-                <h4>Input Data</h4>
+                <div class="section-header-with-icon">
+                  <h4>Input Data</h4>
+                  <button
+                    *ngIf="isDocumentExtractionStep(step.node)"
+                    class="view-doc-icon-btn"
+                    (click)="openDocumentViewer(); $event.stopPropagation()"
+                    title="View Document"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                  </button>
+                </div>
                 <pre class="json-viewer">{{ step.inputData | json }}</pre>
               </div>
               <div class="step-section" *ngIf="step.outputData">
@@ -222,6 +270,36 @@
                   </svg>
                   Rerun from Here
                 </button>
+              </div>
+
+              <!-- Accuracy controls -->
+              <div class="accuracy-controls" *ngIf="step.status === 'completed'">
+                <button
+                  class="btn-small"
+                  [class.btn-success]="step.accuracyStatus === 'correct'"
+                  (click)="markStepAccuracy(step.stepNumber, 'correct')"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                  Correct
+                </button>
+                <button
+                  class="btn-small"
+                  [class.btn-danger]="step.accuracyStatus === 'incorrect'"
+                  (click)="markStepAccuracy(step.stepNumber, 'incorrect')"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                  Incorrect
+                </button>
+              </div>
+
+              <!-- Show accuracy badge if verified -->
+              <div *ngIf="step.accuracyStatus" class="accuracy-badge"
+                   [ngClass]="{'badge-correct': step.accuracyStatus === 'correct', 'badge-incorrect': step.accuracyStatus === 'incorrect'}">
+                {{ step.accuracyStatus === 'correct' ? '✓ Verified Correct' : '✗ Verified Incorrect' }}
               </div>
             </div>
           </div>
@@ -246,17 +324,126 @@
 
     <!-- RIGHT PANEL: Analytics -->
     <div class="panel right-panel">
-      <div *ngIf="!currentExecution" class="empty-analytics">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-        </svg>
-        <p>Analytics will appear here during test execution.</p>
-      </div>
+      <div class="analytics-container">
+        <!-- Accuracy Metrics Card -->
+        <div class="analytics-card accuracy-card">
+          <h3 class="analytics-title">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="title-icon">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            Accuracy Metrics
+          </h3>
 
-      <div *ngIf="currentExecution" class="analytics-container">
-        <!-- Analytics Summary -->
-        <div class="analytics-card">
-          <h3 class="analytics-title">Execution Analytics</h3>
+          <!-- Overall accuracy gauge -->
+          <div class="accuracy-gauge">
+            <div class="gauge-circle">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" class="gauge-bg"/>
+                <circle
+                  cx="50" cy="50" r="45"
+                  class="gauge-progress"
+                  [style.stroke-dashoffset]="getGaugeOffset(accuracyMetrics.accuracyRate)"
+                />
+              </svg>
+              <div class="gauge-value">{{ accuracyMetrics.accuracyRate.toFixed(1) }}%</div>
+            </div>
+            <div class="gauge-label">Overall Accuracy</div>
+          </div>
+
+          <!-- Accuracy stats grid -->
+          <div class="accuracy-stats">
+            <div class="stat-item stat-correct">
+              <div class="stat-icon">✓</div>
+              <div class="stat-label">Correct</div>
+              <div class="stat-value">{{ accuracyMetrics.correctRuns }}</div>
+            </div>
+            <div class="stat-item stat-incorrect">
+              <div class="stat-icon">✗</div>
+              <div class="stat-label">Incorrect</div>
+              <div class="stat-value">{{ accuracyMetrics.incorrectRuns }}</div>
+            </div>
+            <div class="stat-item stat-total">
+              <div class="stat-icon">#</div>
+              <div class="stat-label">Total Runs</div>
+              <div class="stat-value">{{ accuracyMetrics.totalRuns }}</div>
+            </div>
+          </div>
+
+          <!-- Test Coverage Section -->
+          <div class="test-coverage-section">
+            <h4>Test Coverage</h4>
+            <div class="coverage-grid">
+              <div class="coverage-item">
+                <div class="coverage-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                </div>
+                <div class="coverage-info">
+                  <div class="coverage-value">{{ accuracyMetrics.uniqueLoans }}</div>
+                  <div class="coverage-label">Unique Loans</div>
+                </div>
+              </div>
+              <div class="coverage-item">
+                <div class="coverage-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                </div>
+                <div class="coverage-info">
+                  <div class="coverage-value">{{ accuracyMetrics.uniqueBorrowers }}</div>
+                  <div class="coverage-label">Unique Borrowers</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step-level accuracy table -->
+          <div class="step-accuracy-summary">
+            <h4>Step-Level Accuracy</h4>
+            <div class="step-accuracy-table-container">
+              <table class="step-accuracy-table">
+                <thead>
+                  <tr>
+                    <th>Step</th>
+                    <th>Correct</th>
+                    <th>Incorrect</th>
+                    <th>Total</th>
+                    <th>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let step of accuracyMetrics.stepBreakdown">
+                    <td class="step-name-cell">
+                      <span class="step-number-badge">{{ step.stepNumber }}</span>
+                      <span class="step-name-text">{{ step.stepName }}</span>
+                    </td>
+                    <td class="correct-cell">{{ step.correctCount }}</td>
+                    <td class="incorrect-cell">{{ step.incorrectCount }}</td>
+                    <td class="total-cell">{{ step.totalRuns }}</td>
+                    <td class="rate-cell">
+                      <span class="rate-badge" [ngClass]="{'rate-high': step.accuracyRate >= 90, 'rate-medium': step.accuracyRate >= 70 && step.accuracyRate < 90, 'rate-low': step.accuracyRate < 70}">
+                        {{ step.accuracyRate.toFixed(1) }}%
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div *ngIf="accuracyMetrics.stepBreakdown.length === 0" class="no-data-message">
+                No step accuracy data available yet. Mark steps as correct/incorrect to see statistics.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current Run Analytics Card -->
+        <div class="analytics-card" *ngIf="currentExecution">
+          <h3 class="analytics-title">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="title-icon">
+              <path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/>
+            </svg>
+            Current Run
+          </h3>
           <div class="analytics-grid">
             <div class="metric-item">
               <div class="metric-label">Input Tokens</div>
@@ -277,8 +464,37 @@
           </div>
         </div>
 
+        <!-- Historical Averages Card -->
+        <div class="analytics-card averages-card">
+          <h3 class="analytics-title">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="title-icon">
+              <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+            </svg>
+            Historical Averages
+            <span class="runs-count">({{ performanceAverages.totalRuns }} runs)</span>
+          </h3>
+          <div class="analytics-grid">
+            <div class="metric-item">
+              <div class="metric-label">Avg Input Tokens</div>
+              <div class="metric-value">{{ performanceAverages.avgInputTokens | number: '1.0-0' }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Avg Output Tokens</div>
+              <div class="metric-value">{{ performanceAverages.avgOutputTokens | number: '1.0-0' }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Avg Cost</div>
+              <div class="metric-value cost">${{ performanceAverages.avgCost.toFixed(4) }}</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Avg Duration</div>
+              <div class="metric-value">{{ performanceAverages.avgDuration.toFixed(2) }}s</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Step Breakdown -->
-        <div class="analytics-card" *ngIf="currentExecution.analytics.stepBreakdown.length > 0">
+        <div class="analytics-card" *ngIf="currentExecution && currentExecution.analytics.stepBreakdown.length > 0">
           <h3 class="analytics-title">Step Breakdown</h3>
           <div class="breakdown-list">
             <div class="breakdown-item" *ngFor="let breakdown of currentExecution.analytics.stepBreakdown">
@@ -287,42 +503,15 @@
                 <span class="breakdown-cost">${{ breakdown.cost.toFixed(4) }}</span>
               </div>
               <div class="breakdown-details">
-                <span class="breakdown-detail">{{ breakdown.tokens }} tokens</span>
+                <span class="breakdown-detail">In: {{ breakdown.inputTokens }} | Out: {{ breakdown.outputTokens }}</span>
                 <span class="breakdown-detail">{{ breakdown.duration.toFixed(2) }}s</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Selected Step Details -->
-        <div class="analytics-card" *ngIf="selectedStepNumber">
-          <h3 class="analytics-title">Step {{ selectedStepNumber }} Details</h3>
-          <div class="step-details-content">
-            <ng-container *ngIf="getSelectedStep() as selectedStep">
-              <div class="detail-section">
-                <h4>Status</h4>
-                <span class="detail-badge" [ngClass]="getStepStatusClass(selectedStep.status)">
-                  {{ selectedStep.status | titlecase }}
-                </span>
-              </div>
-              <div class="detail-section" *ngIf="selectedStep.duration">
-                <h4>Execution Time</h4>
-                <p>{{ selectedStep.duration.toFixed(2) }} seconds</p>
-              </div>
-              <div class="detail-section" *ngIf="selectedStep.status === 'completed'">
-                <h4>Tokens Used</h4>
-                <p>Input: {{ selectedStep.tokens.input }} | Output: {{ selectedStep.tokens.output }}</p>
-              </div>
-              <div class="detail-section" *ngIf="selectedStep.status === 'completed'">
-                <h4>Cost</h4>
-                <p class="cost-value">${{ selectedStep.cost.toFixed(4) }}</p>
-              </div>
-            </ng-container>
-          </div>
-        </div>
-
         <!-- Test Info -->
-        <div class="analytics-card test-info">
+        <div class="analytics-card test-info" *ngIf="currentExecution">
           <h3 class="analytics-title">Test Information</h3>
           <div class="info-item">
             <span class="info-label">Test Type:</span>
@@ -385,6 +574,93 @@
     <div class="modal-footer">
       <button class="btn-secondary" (click)="closeEditModal()">Cancel</button>
       <button class="btn-primary" (click)="saveEditedOutput()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Document Viewer Modal -->
+<div class="modal-overlay" *ngIf="showDocumentViewer" (click)="closeDocumentViewer()">
+  <div class="document-modal" (click)="$event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="document-header">
+      <h3>{{ testType === 'loan' ? 'Loan' : 'Borrower' }} Documents</h3>
+      <button class="close-button" (click)="closeDocumentViewer()">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Document Viewer Body -->
+    <div class="document-body">
+      <!-- Document List Sidebar -->
+      <div class="document-sidebar">
+        <div class="document-list">
+          <div
+            class="document-item"
+            *ngFor="let doc of getDocumentsByLevel()"
+            [class.active]="selectedDocument?.id === doc.id"
+            (click)="selectDocument(doc)"
+          >
+            <div class="doc-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/>
+                <path d="M14 2v6h6"/>
+              </svg>
+            </div>
+            <div class="doc-info">
+              <div class="doc-name">{{ doc.name }}</div>
+              <div class="doc-meta">
+                <span class="doc-type">{{ doc.type | uppercase }}</span>
+                <span class="doc-pages">{{ doc.pageCount }} pages</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF Viewer Area -->
+      <div class="document-viewer-area">
+        <div class="viewer-toolbar">
+          <button class="toolbar-btn">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Previous
+          </button>
+          <span class="page-indicator">Page 1 of {{ selectedDocument?.pageCount }}</span>
+          <button class="toolbar-btn">
+            Next
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+          <button class="toolbar-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4m4-5l5 5 5-5m-5 5V3"/>
+            </svg>
+            Download
+          </button>
+        </div>
+
+        <!-- Embedded PDF Viewer (using iframe with SafePipe) -->
+        <div class="pdf-container">
+          <iframe
+            *ngIf="selectedDocument"
+            [src]="selectedDocument.url | safe: 'resourceUrl'"
+            class="pdf-iframe"
+            frameborder="0"
+          ></iframe>
+
+          <!-- Fallback message -->
+          <div *ngIf="!selectedDocument" class="no-document-selected">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p>Select a document to view</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
